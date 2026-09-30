@@ -69,7 +69,10 @@ function persistServerUrl(url: string | null): void {
  * 检测是否为 Electron 桌面环境
  */
 export function isElectronEnv(): boolean {
-  return typeof window !== 'undefined' && typeof (window as any).electronAPI === 'object';
+  // 必须检测真实 Electron 进程（window.process.type），不能仅检查 window.electronAPI：
+  // electronCompat.ts 在 Web 环境会注入 mock electronAPI 以提供兼容 API，
+  // 若仅检查 electronAPI 存在会导致 Web 端误判为桌面端，直连 127.0.0.1:8000 失败。
+  return typeof window !== 'undefined' && Boolean((window as any).process?.type);
 }
 
 /**
