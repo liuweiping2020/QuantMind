@@ -69,7 +69,10 @@ function persistServerUrl(url: string | null): void {
  * 检测是否为 Electron 桌面环境
  */
 export function isElectronEnv(): boolean {
-  return typeof window !== 'undefined' && typeof (window as any).electronAPI === 'object';
+  // electronCompat.ts injects a mock window.electronAPI in ALL environments
+  // (including web browsers), so checking for its mere presence is unreliable.
+  // window.process.type is only set by Electron's preload in renderer processes.
+  return typeof window !== 'undefined' && Boolean((window as any).process?.type);
 }
 
 /**
