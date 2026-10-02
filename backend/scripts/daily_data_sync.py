@@ -393,6 +393,10 @@ def _to_bs_symbol(symbol: str) -> str:
 
 
 def _read_baostock(symbol: str, start: date, end: date) -> Optional[pd.DataFrame]:
+    # baostock uses a direct TCP connection (port 6000) which is blocked
+    # in sandbox/proxy environments. Skip it and fall through to akshare.
+    if os.getenv("SKIP_BAOSTOCK", "").lower() in ("1", "true", "yes"):
+        return None
     try:
         import baostock as bs
         _ensure_baostock()
@@ -502,6 +506,9 @@ def _read_akshare(symbol: str, start: date, end: date) -> Optional[pd.DataFrame]
 # Data source: eltdx (today's data)
 # ---------------------------------------------------------------------------
 def _read_eltdx(symbol: str) -> Optional[pd.DataFrame]:
+    # mootdx uses direct TCP to 通达信 servers, blocked in sandbox/proxy env.
+    if os.getenv("SKIP_ELTDX", "").lower() in ("1", "true", "yes"):
+        return None
     try:
         from mootdx.quotes import Quotes
     except ImportError:
@@ -908,6 +915,14 @@ def _ensure_future_partitions(engine, months_ahead: int = 3):
 
     today = date.today()
     with engine.begin() as conn:
+        # Check if stock_daily_latest is actually a partitioned table.
+        # In some environments the table is a regular table; skip partition creation.
+        is_partitioned = conn.execute(sql_text(
+            "SELECT relkind FROM pg_class WHERE relname = 'stock_daily_latest'"
+        )).scalar()
+        if is_partitioned != 'p':
+            log.info("stock_daily_latest is not partitioned (relkind=%s), skipping partition creation", is_partitioned)
+            return
         for i in range(0, months_ahead + 1):
             target = today + relativedelta(months=i)
             year_month = target.strftime("%Y_%m")
